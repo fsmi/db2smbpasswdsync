@@ -20,8 +20,10 @@
 import sys
 import os
 import fcntl
+from optparse import OptionParser
+from ConfigParser import SafeConfigParser
 
-SMBPASSWD_FILE = '/etc/samba/smbpasswd'
+CONFIG_FILE = '/etc/db2smbpasswdsync.conf'
 
 
 class SmbPasswdFile(object):
@@ -202,15 +204,20 @@ def get_db_cursor(dsn):
     return cur
 
 def main():
-    dsn = "host='testhost' port='5432' dbname='fsmi' user='sambasync' "\
-            "password='blabla' sslmode='require'"
-    user_table = 'samba_accounts'
+    parser = OptionParser()
+    parser.add_option('-c', '--config', dest='config',
+            help='read configuration from CONFIG_FILE', metavar='CONFIG_FILE',
+            default=CONFIG_FILE)
+    (options, args) = parser.parse_args()
 
-    cur = get_db_cursor(dsn)
-    user_list = get_users(cur, user_table)
+    config = SafeConfigParser()
+    config.read(options.config)
+
+    cur = get_db_cursor(config.get('db', 'dsn'))
+    user_list = get_users(cur, config.get('db', 'user_table'))
     cur.close()
 
-    synchronise_smbpasswd_file(user_list, SMBPASSWD_FILE)
+    synchronise_smbpasswd_file(user_list, config.get('samba', 'smbpasswd_file'))
 
 if __name__ == '__main__':
     main()
