@@ -1,0 +1,189 @@
+#!/usr/bin/python
+
+import sys
+import os
+import fcntl
+
+SMBPASSWD_FILE = '/etc/samba/smbpasswd'
+
+
+class SmbPasswdFile(object):
+    def __init__(self, fn):
+        self.fn = fn
+        self._f = None
+
+    def __del__(self):
+        self.close()
+
+    def open_read(self):
+        self._f = open(self.fn, 'r+b')
+
+    def open_write(self):
+        self._f = open(self.fn, 'w+b')
+
+    def write_lock(self):
+        fcntl.lockf(self._f, fcntl.LOCK_EX)
+
+    def read_lock(self):
+        fcntl.lockf(self._f, fcntl.LOCK_SH)
+
+    def close(self):
+        if self._f is not None:
+            fcntl.lockf(self._f, fcntl.LOCK_UN)
+            self._f.close()
+            self._f = None
+
+    def read_entries(self):
+        entries = []
+        for line in self._f:
+            line = line.strip()
+            if line.startswith('#'):
+                # We ignore (and implicitly remove) comments.
+                continue
+            cols = line.split(':')
+            entry = SmbPasswdEntry()
+            entry.name = cols[0]
+            entry.uid = int(cols[1])
+            entry.lm_hash = cols[2]
+            entry.nt_hash = cols[3]
+            for c in cols[4][1:12]:
+                if c != ' ':
+                    entry.acc_flags.add(c)
+            if cols[5][0:4] == 'LCT-':
+                entry.last_change = int(cols[5][4:], 16)
+            entries.append(entry)
+        return entries
+
+    def write_entries(self, entries):
+        for entry in entries:
+            lm_hash = entry.lm_hash
+            if entry.lm_hash is None:
+                lm_hash = 'X' * 32
+            nt_hash = entry.nt_hash
+            if entry.nt_hash is None:
+                nt_hash = 'X' * 32
+            acc_flags = ''.join(entry.acc_flags)
+            self._f.write('%s:%d:%s:%s:[%-11s]:LCT-%X:\n' % (entry.name,
+                    entry.uid, lm_hash, nt_hash, acc_flags, entry.last_change))
+
+class SmbPasswdEntry(object):
+    USER = 'U'
+    WORKSTATION = 'W'
+    DISABLED = 'D'
+    NO_PASSWD = 'N'
+    NO_PW_EXPIRE = 'X'
+
+    def __init__(self):
+        self.name = None
+        self.uid = None
+        self.lm_hash = None
+        self.nt_hash = None
+        self.acc_flags = set()
+        self.last_change = 0
+
+class User(object):
+    """A User instance represents a valid user account."""
+
+    def __init__(self):
+        self.name = None
+        self.uid = None
+        self.nt_hash = None
+        self.disabled = True
+
+def get_users():
+    # TODO Replace with real db query.
+    ul = []
+    u = User()
+    u.name = 'test.user'
+    u.uid = 1000
+    u.nt_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+    u.disabled = True
+    ul.append(u)
+    u = User()
+    u.name = 'test.user4'
+    u.uid = 1001
+    u.nt_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+    u.disabled = False
+    ul.append(u)
+    u = User()
+    u.name = 'test.user5'
+    u.uid = 1002
+    u.nt_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+    u.disabled = True
+    ul.append(u)
+    return ul
+
+def synchronise_smbpasswd_file(smbpasswd_fn):
+    user_list = get_users()
+    users = {}
+    for user in user_list:
+        users[user.name] = user
+
+    smbpasswd = SmbPasswdFile(smbpasswd_fn)
+    smbpasswd.open_read()
+    smbpasswd.read_lock()
+
+    updated_entries = []
+    entry_users = {}
+
+    # Process existing entries.
+    for entry in smbpasswd.read_entries():
+        if SmbPasswdEntry.WORKSTATION in entry.acc_flags:
+            # Simply copy workstations over, we only filter user accounts.
+            sys.stdout.write('I: preserving workstation account "%s"\n' % \
+                    entry.name)
+            updated_entries.append(entry)
+        elif not SmbPasswdEntry.USER in entry.acc_flags:
+            sys.stderr.write('W: removing smbpasswd entry with ' \
+                    'unexpected flags for account "%s"\n' % entry.name)
+        elif not entry.name in users:
+            sys.stdout.write('I: removing account "%s"\n' % entry.name)
+        else:
+            sys.stdout.write('D: updating account "%s"\n' % entry.name)
+            user = users[entry.name]
+            # Update fields to current state
+            entry.nt_hash = user.nt_hash
+            entry.lm_hash = None
+            entry.uid = user.uid
+            if user.disabled:
+                if SmbPasswdEntry.DISABLED not in entry.acc_flags:
+                    sys.stdout.write('I: disabling account "%s"\n' % entry.name)
+                    entry.acc_flags.add(SmbPasswdEntry.DISABLED)
+            else:
+                if SmbPasswdEntry.DISABLED in entry.acc_flags:
+                    sys.stdout.write('I: enabling account "%s"\n' % entry.name)
+                    entry.acc_flags.remove(SmbPasswdEntry.DISABLED)
+            updated_entries.append(entry)
+            entry_users[entry.name] = entry
+
+    # Add new entries in case an account is missing.
+    for user in user_list:
+        if user.name in entry_users:
+            continue
+        entry = SmbPasswdEntry()
+        entry.name = user.name
+        entry.uid = user.uid
+        entry.nt_hash = user.nt_hash
+        entry.acc_flags.add(SmbPasswdEntry.USER)
+        if user.disabled:
+            sys.stdout.write('I: adding disabled account "%s"\n' % user.name)
+            entry.acc_flags.add(SmbPasswdEntry.DISABLED)
+        else:
+            sys.stdout.write('I: adding account "%s"\n' % user.name)
+        updated_entries.append(entry)
+        entry_users[entry.name] = entry
+
+    # Create new smbpasswd file.
+    smbpasswd.write_lock()
+    new_smbpasswd = SmbPasswdFile('%s.%d' % (smbpasswd.fn, os.getpid()))
+    new_smbpasswd.open_write()
+    new_smbpasswd.write_lock()
+    new_smbpasswd.write_entries(updated_entries)
+
+    # Replace old smbpasswd file.
+    os.rename(new_smbpasswd.fn, smbpasswd.fn)
+    new_smbpasswd.close()
+    smbpasswd.close()
+
+if __name__ == '__main__':
+    synchronise_smbpasswd_file(SMBPASSWD_FILE)
