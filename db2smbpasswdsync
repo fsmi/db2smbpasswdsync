@@ -92,31 +92,21 @@ class User(object):
         self.nt_hash = None
         self.disabled = True
 
-def get_users():
-    # TODO Replace with real db query.
-    ul = []
-    u = User()
-    u.name = 'test.user'
-    u.uid = 1000
-    u.nt_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-    u.disabled = True
-    ul.append(u)
-    u = User()
-    u.name = 'test.user4'
-    u.uid = 1001
-    u.nt_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-    u.disabled = False
-    ul.append(u)
-    u = User()
-    u.name = 'test.user5'
-    u.uid = 1002
-    u.nt_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-    u.disabled = True
-    ul.append(u)
-    return ul
+def get_users(cur, table_name):
+    users = []
 
-def synchronise_smbpasswd_file(smbpasswd_fn):
-    user_list = get_users()
+    cur.execute('SELECT login, uid, nt_hash, disabled from "%s"' % table_name)
+    for row in cur.fetchall():
+        user = User()
+        user.name = row['login']
+        user.uid = row['uid']
+        user.nt_hash = row['nt_hash']
+        user.disabled = row['disabled']
+        users.append(user)
+
+    return users
+
+def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
     users = {}
     for user in user_list:
         users[user.name] = user
@@ -187,5 +177,23 @@ def synchronise_smbpasswd_file(smbpasswd_fn):
     new_smbpasswd.close()
     smbpasswd.close()
 
+def get_db_cursor(dsn):
+    import psycopg2
+    import psycopg2.extras
+    conn = psycopg2.connect(dsn)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    return cur
+
+def main():
+    dsn = "host='testhost' port='5432' dbname='fsmi' user='sambasync' "\
+            "password='blabla' sslmode='require'"
+    user_table = 'samba_accounts'
+
+    cur = get_db_cursor(dsn)
+    user_list = get_users(cur, user_table)
+    cur.close()
+
+    synchronise_smbpasswd_file(user_list, SMBPASSWD_FILE)
+
 if __name__ == '__main__':
-    synchronise_smbpasswd_file(SMBPASSWD_FILE)
+    main()
