@@ -1,0 +1,15 @@
+Source: db2smbpasswdsync
+Section: admin
+Priority: extra
+Maintainer: Fabian Knittel <fabian.knittel@avona.com>
+Build-Depends: debhelper (>= 4)
+Standards-Version: 3.8.0
+
+Package: db2smbpasswdsync
+Architecture: all
+Depends: python (>= 2.4), python-psycopg2
+Description: Synchronise Samba's smbpasswd with an SQL database
+ The db2smbpasswdsync script synchronises a table of users from an SQL
+ database with Samba's smbpasswd passdb file. While machine accounts are
+ preserved, all other accounts are added or removed depending on whether
+ they appear in the SQL database.

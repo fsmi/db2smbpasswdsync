@@ -1,0 +1,6 @@
+db2smbpasswdsync (0.1-1) fsmi-lenny; urgency=low
+
+  * Initial release
+
+ -- Fabian Knittel <fabian.knittel@avona.com>  Thu, 04 Feb 2010 22:56:43 +0100
+
