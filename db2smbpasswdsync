@@ -25,6 +25,17 @@ from ConfigParser import SafeConfigParser
 
 CONFIG_FILE = '/etc/db2smbpasswdsync.conf'
 
+class Log(object):
+    def __init__(self):
+        self.show_debug = False
+    def warn(self, msg):
+        sys.stderr.write("W: %s\n" % msg)
+    def info(self, msg):
+        sys.stdout.write("I: %s\n" % msg)
+    def debug(self, msg):
+        if self.show_debug:
+            sys.stdout.write("D: %s\n" % msg)
+log = Log()
 
 class SmbPasswdFile(object):
     def __init__(self, fn):
@@ -141,16 +152,15 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
     for entry in smbpasswd.read_entries():
         if SmbPasswdEntry.WORKSTATION in entry.acc_flags:
             # Simply copy workstations over, we only filter user accounts.
-            sys.stdout.write('I: preserving workstation account "%s"\n' % \
-                    entry.name)
+            log.info('preserving workstation account "%s"' % entry.name)
             updated_entries.append(entry)
         elif not SmbPasswdEntry.USER in entry.acc_flags:
-            sys.stderr.write('W: removing smbpasswd entry with ' \
-                    'unexpected flags for account "%s"\n' % entry.name)
+            log.warn('removing smbpasswd entry with unexpected flags for ' \
+                    'account "%s"' % entry.name)
         elif not entry.name in users:
-            sys.stdout.write('I: removing account "%s"\n' % entry.name)
+            log.info('removing account "%s"' % entry.name)
         else:
-            sys.stdout.write('D: updating account "%s"\n' % entry.name)
+            log.debug('updating account "%s"' % entry.name)
             user = users[entry.name]
             # Update fields to current state
             entry.nt_hash = user.nt_hash
@@ -158,11 +168,11 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
             entry.uid = user.uid
             if user.disabled:
                 if SmbPasswdEntry.DISABLED not in entry.acc_flags:
-                    sys.stdout.write('I: disabling account "%s"\n' % entry.name)
+                    log.info('disabling account "%s"' % entry.name)
                     entry.acc_flags.add(SmbPasswdEntry.DISABLED)
             else:
                 if SmbPasswdEntry.DISABLED in entry.acc_flags:
-                    sys.stdout.write('I: enabling account "%s"\n' % entry.name)
+                    log.info('enabling account "%s"' % entry.name)
                     entry.acc_flags.remove(SmbPasswdEntry.DISABLED)
             updated_entries.append(entry)
             entry_users[entry.name] = entry
@@ -177,10 +187,10 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
         entry.nt_hash = user.nt_hash
         entry.acc_flags.add(SmbPasswdEntry.USER)
         if user.disabled:
-            sys.stdout.write('I: adding disabled account "%s"\n' % user.name)
+            log.info('adding disabled account "%s"' % user.name)
             entry.acc_flags.add(SmbPasswdEntry.DISABLED)
         else:
-            sys.stdout.write('I: adding account "%s"\n' % user.name)
+            log.info('adding account "%s"' % user.name)
         updated_entries.append(entry)
         entry_users[entry.name] = entry
 
@@ -205,10 +215,14 @@ def get_db_cursor(dsn):
 
 def main():
     parser = OptionParser()
+    parser.add_option('--debug', action='store_true', dest='debug',
+            help='activate debugging messages', default=False)
     parser.add_option('-c', '--config', dest='config',
             help='read configuration from CONFIG_FILE', metavar='CONFIG_FILE',
             default=CONFIG_FILE)
     (options, args) = parser.parse_args()
+
+    log.show_debug = options.debug
 
     config = SafeConfigParser()
     config.read(options.config)
