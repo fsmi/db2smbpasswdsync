@@ -19,7 +19,9 @@ class SmbPasswdFile(object):
         self._f = open(self.fn, 'r+b')
 
     def open_write(self):
-        self._f = open(self.fn, 'w+b')
+        # Create file, while ensuring restricted file access mode.
+        fd = os.open(self.fn, os.O_WRONLY | os.O_CREAT, 0600)
+        self._f = os.fdopen(fd, 'wb')
 
     def write_lock(self):
         fcntl.lockf(self._f, fcntl.LOCK_EX)
