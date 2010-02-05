@@ -20,6 +20,7 @@
 import sys
 import os
 import fcntl
+import time
 from optparse import OptionParser
 from ConfigParser import SafeConfigParser
 
@@ -121,7 +122,7 @@ class User(object):
         self.uid = None
         self.nt_hash = None
         self.disabled = True
-        self.last_change = None
+        self.last_change = 0
 
 def get_users(cur, table_name):
     users = []
@@ -134,7 +135,12 @@ def get_users(cur, table_name):
         user.uid = row['uid']
         user.nt_hash = row['nt_hash']
         user.disabled = row['disabled']
-        user.last_change = row['last_modified']
+        # Convert datetime object to seconds since epoch.
+        last_change_time = row['last_modified']
+        if last_change_time is None:
+            user.last_change = 0
+        else:
+            user.last_change = time.mktime(last_change_time.timetuple())
         users.append(user)
 
     return users
@@ -166,9 +172,10 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
             log.debug('updating account "%s"' % entry.name)
             user = users[entry.name]
             # Update fields to current state
+            entry.uid = user.uid
             entry.nt_hash = user.nt_hash
             entry.lm_hash = None
-            entry.uid = user.uid
+            entry.last_change = user.last_change
             if user.disabled:
                 if SmbPasswdEntry.DISABLED not in entry.acc_flags:
                     log.info('disabling account "%s"' % entry.name)
@@ -188,6 +195,7 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
         entry.name = user.name
         entry.uid = user.uid
         entry.nt_hash = user.nt_hash
+        entry.last_change = user.last_change
         entry.acc_flags.add(SmbPasswdEntry.USER)
         if user.disabled:
             log.info('adding disabled account "%s"' % user.name)
