@@ -21,6 +21,7 @@ import sys
 import os
 import fcntl
 import time
+import datetime
 from optparse import OptionParser
 from ConfigParser import SafeConfigParser
 
@@ -145,7 +146,27 @@ def get_users(cur, table_name):
 
     return users
 
-def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
+def update_users(cur, users, table_name):
+    UPDATE_QUERY = ('UPDATE "%s"'  % table_name) + \
+            'SET nt_hash = %(nt_hash)s, last_modified = %(last_modified)s '\
+            'WHERE login = %(login)s'
+    update_sets = []
+    for user in users:
+        log.debug('syncing changes for account "%s" to db' % user.name)
+        log.debug("login: %s, hash: %s" % (user.name, user.nt_hash))
+        cur.execute(UPDATE_QUERY, {
+            'login':user.name,
+            'nt_hash':user.nt_hash,
+            'last_modified':datetime.datetime.fromtimestamp(user.last_change)
+            })
+        log.debug("updated %d rows" % cur.rowcount)
+
+def synchronise_smbpasswd_file(user_list, smbpasswd_fn, updated_user_list):
+    """
+    Synchronises the user_list with the smbpasswd file named in smbpasswd_fn.
+    Stores any user entries from user_list that were updated in
+    updated_user_list.
+    """
     users = {}
     for user in user_list:
         users[user.name] = user
@@ -173,9 +194,15 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
             user = users[entry.name]
             # Update fields to current state
             entry.uid = user.uid
-            entry.nt_hash = user.nt_hash
             entry.lm_hash = None
-            entry.last_change = user.last_change
+            if user.last_change >= entry.last_change:
+                entry.nt_hash = user.nt_hash
+                entry.last_change = user.last_change
+            else:
+                log.debug('account "%s" newer in smbpasswd' % user.name)
+                user.nt_hash = entry.nt_hash
+                user.last_change = entry.last_change
+                updated_user_list.append(user)
             if user.disabled:
                 if SmbPasswdEntry.DISABLED not in entry.acc_flags:
                     log.info('disabling account "%s"' % entry.name)
@@ -217,12 +244,12 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn):
     new_smbpasswd.close()
     smbpasswd.close()
 
-def get_db_cursor(dsn):
+def get_db_conn_and_cursor(dsn):
     import psycopg2
     import psycopg2.extras
     conn = psycopg2.connect(dsn)
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    return cur
+    return (conn, cur)
 
 def main():
     parser = OptionParser()
@@ -238,11 +265,16 @@ def main():
     config = SafeConfigParser()
     config.read(options.config)
 
-    cur = get_db_cursor(config.get('db', 'dsn'))
+    conn, cur = get_db_conn_and_cursor(config.get('db', 'dsn'))
     user_list = get_users(cur, config.get('db', 'user_table'))
-    cur.close()
 
-    synchronise_smbpasswd_file(user_list, config.get('samba', 'smbpasswd_file'))
+    updated_user_list = []
+    synchronise_smbpasswd_file(user_list, config.get('samba', 'smbpasswd_file'),
+            updated_user_list)
+
+    update_users(cur, updated_user_list, config.get('db', 'user_table'))
+    cur.close()
+    conn.commit()
 
 if __name__ == '__main__':
     main()
