@@ -1,3 +1,11 @@
+db2smbpasswdsync (0.2-1) fsmi-lenny; urgency=low
+
+  * New upstream release:
+    + Correctly copy time stamps.
+    + Update password in db if the smbpasswd timestamp is newer.
+
+ -- Fabian Knittel <fabian.knittel@avona.com>  Fri, 05 Feb 2010 21:00:05 +0100
+
 db2smbpasswdsync (0.1-1) fsmi-lenny; urgency=low
 
   * Initial release
