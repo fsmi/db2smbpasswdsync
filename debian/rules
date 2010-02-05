@@ -19,7 +19,7 @@ clean:
 install:
 	dh_testdir
 	dh_testroot
-	dh_clean -k
+	dh_prep
 	dh_installdirs
 	install db2smbpasswdsync debian/db2smbpasswdsync/usr/sbin
 
