@@ -121,17 +121,20 @@ class User(object):
         self.uid = None
         self.nt_hash = None
         self.disabled = True
+        self.last_change = None
 
 def get_users(cur, table_name):
     users = []
 
-    cur.execute('SELECT login, uid, nt_hash, disabled from "%s"' % table_name)
+    cur.execute('SELECT login, uid, nt_hash, disabled, last_modified ' \
+            'from "%s"' % table_name)
     for row in cur.fetchall():
         user = User()
         user.name = row['login']
         user.uid = row['uid']
         user.nt_hash = row['nt_hash']
         user.disabled = row['disabled']
+        user.last_change = row['last_modified']
         users.append(user)
 
     return users
