@@ -153,13 +153,11 @@ def update_users(cur, users, table_name):
     update_sets = []
     for user in users:
         log.debug('syncing changes for account "%s" to db' % user.name)
-        log.debug("login: %s, hash: %s" % (user.name, user.nt_hash))
         cur.execute(UPDATE_QUERY, {
             'login':user.name,
             'nt_hash':user.nt_hash,
             'last_modified':datetime.datetime.fromtimestamp(user.last_change)
             })
-        log.debug("updated %d rows" % cur.rowcount)
 
 def synchronise_smbpasswd_file(user_list, smbpasswd_fn, updated_user_list):
     """
@@ -182,7 +180,7 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn, updated_user_list):
     for entry in smbpasswd.read_entries():
         if SmbPasswdEntry.WORKSTATION in entry.acc_flags:
             # Simply copy workstations over, we only filter user accounts.
-            log.info('preserving workstation account "%s"' % entry.name)
+            log.debug('preserving workstation account "%s"' % entry.name)
             updated_entries.append(entry)
         elif not SmbPasswdEntry.USER in entry.acc_flags:
             log.warn('removing smbpasswd entry with unexpected flags for ' \
