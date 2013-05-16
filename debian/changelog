@@ -1,3 +1,16 @@
+db2smbpasswdsync (0.3-1) fsmi-wheezy; urgency=low
+
+  * Team upload.
+  * New upstream release:
+    + correctly handle non-existent nt_hash in DB.
+      Thanks to Fabian Knittel
+  * Switch to source/format 3.0 (quilt)
+  * Switch to dh(1)
+  * Change Maintainer: to team
+  * Bump Standards-Version, add Homepage and Vcs-* fields
+
+ -- Timo Weingärtner <timo@tiwe.de>  Thu, 16 May 2013 20:07:25 +0200
+
 db2smbpasswdsync (0.2-1) fsmi-lenny; urgency=low
 
   * New upstream release:
