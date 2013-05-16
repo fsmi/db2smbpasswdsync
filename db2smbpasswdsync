@@ -193,22 +193,23 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn, updated_user_list):
             # Update fields to current state
             entry.uid = user.uid
             entry.lm_hash = None
-            if user.last_change >= entry.last_change:
-                entry.nt_hash = user.nt_hash
-                entry.last_change = user.last_change
-            else:
-                log.debug('account "%s" newer in smbpasswd' % user.name)
-                user.nt_hash = entry.nt_hash
-                user.last_change = entry.last_change
-                updated_user_list.append(user)
             if user.disabled:
                 if SmbPasswdEntry.DISABLED not in entry.acc_flags:
                     log.info('disabling account "%s"' % entry.name)
                     entry.acc_flags.add(SmbPasswdEntry.DISABLED)
+                    entry.nt_hash = None
             else:
                 if SmbPasswdEntry.DISABLED in entry.acc_flags:
                     log.info('enabling account "%s"' % entry.name)
                     entry.acc_flags.remove(SmbPasswdEntry.DISABLED)
+                if user.last_change >= entry.last_change:
+                    entry.nt_hash = user.nt_hash
+                    entry.last_change = user.last_change
+                else:
+                    log.debug('account "%s" newer in smbpasswd' % user.name)
+                    user.nt_hash = entry.nt_hash
+                    user.last_change = entry.last_change
+                    updated_user_list.append(user)
             updated_entries.append(entry)
             entry_users[entry.name] = entry
 
@@ -225,6 +226,7 @@ def synchronise_smbpasswd_file(user_list, smbpasswd_fn, updated_user_list):
         if user.disabled:
             log.info('adding disabled account "%s"' % user.name)
             entry.acc_flags.add(SmbPasswdEntry.DISABLED)
+            entry.nt_hash = None
         else:
             log.info('adding account "%s"' % user.name)
         updated_entries.append(entry)
