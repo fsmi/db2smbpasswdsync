@@ -3,7 +3,10 @@ Section: admin
 Priority: extra
 Maintainer: Fachschaft Mathe/Info Rechner-Admins <rechner@fsmi.uni-karlsruhe.de>
 Build-Depends: debhelper (>= 7), python
-Standards-Version: 3.8.3
+Standards-Version: 3.9.4
+Homepage: http://opensource.fsmi.uni-karlsruhe.de/gitweb/?p=db2smbpasswdsync.git
+Vcs-Browser: http://opensource.fsmi.uni-karlsruhe.de/gitweb/?p=db2smbpasswdsync.git;a=shortlog;h=refs/heads/debian
+Vcs-Git: git://opensource.fsmi.uni-karlsruhe.de/db2smbpasswdsync.git -b debian
 
 Package: db2smbpasswdsync
 Architecture: all
