@@ -1,7 +1,7 @@
 Source: db2smbpasswdsync
 Section: admin
 Priority: extra
-Maintainer: Fabian Knittel <fabian.knittel@avona.com>
+Maintainer: Fachschaft Mathe/Info Rechner-Admins <rechner@fsmi.uni-karlsruhe.de>
 Build-Depends: debhelper (>= 7), python
 Standards-Version: 3.8.3
 
